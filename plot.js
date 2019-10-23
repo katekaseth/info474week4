@@ -106,9 +106,9 @@ function plotData(map) {
     let pop_data = data.map((row) => +row["population"]);
     let pop_limits = d3.extent(pop_data);
     // make size scaling function for population
-    let pop_map_func = d3.scaleLinear()
+    let pop_map_func = d3.scaleSqrt()
         .domain([pop_limits[0], pop_limits[1]])
-        .range([5, 50]);
+        .range([3, 50]);
 
     // mapping functions
     let xMap = map.x;
