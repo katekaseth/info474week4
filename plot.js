@@ -1,6 +1,7 @@
 "use-strict";
 
-let data = "";
+let data;
+let data1980;
 let svgContainer = ""; // keep SVG reference in global scope
 let popChartContainer = "";
 const msm = {
@@ -41,8 +42,12 @@ window.onload = function () {
 // make scatter plot with trend line
 function makeScatterPlot(csvData) {
     // assign data as global variable; filter out unplottable values
-    data = csvData.filter((data) => {return data.fertility != "NA" && data.life_expectancy != "NA"})
-
+    data = csvData.filter((data) => {
+        return data.fertility != "NA" && data.life_expectancy != "NA"
+    })
+    data1980 = data.filter((data) => {
+        return data.year === "1980"
+    })
     let dropDown = d3.select("#filter").append("select")
         .attr("name", "year");
 
@@ -60,23 +65,30 @@ function makeScatterPlot(csvData) {
     plotData(mapFunctions);
 
     // draw title and axes labels
-    makeLabels(svgContainer, msm, "Countries by Life Expectancy and Fertility Rate",'Fertility Rates (Avg Children per Woman)','Life Expectancy (years)');
+    makeLabels(svgContainer, msm, "Countries by Life Expectancy and Fertility Rate (1980)", 'Fertility Rates (Avg Children per Woman)', 'Life Expectancy (years)');
 
-    let distinctYears = [...new Set(data.map(d => d.year))];
-    let defaultYear = 1980;
+    //let distinctYears = [...new Set(data.map(d => d.year))];
+    let distinctYears = ["1980"]
+    let defaultYear = "1980";
 
     let options = dropDown.selectAll("option")
-           .data(distinctYears)
-           .enter()
-           .append("option")
-           .text(function (d) { return d; })
-           .attr("value", function (d) { return d; })
-           .attr("selected", function(d){ return d == defaultYear; })
-           
-    showCircles(dropDown.node());//this will filter initially
-    dropDown.on("change", function() {
-        showCircles(this)
-    });
+        .data(distinctYears)
+        .enter()
+        .append("option")
+        .text(function (d) {
+            return d;
+        })
+        .attr("value", function (d) {
+            return d;
+        })
+        .attr("selected", function (d) {
+            return d === defaultYear;
+        })
+
+    // showCircles(dropDown.node()); //this will filter initially
+    // dropDown.on("change", function () {
+    //     showCircles(this)
+    // });
 }
 
 function showCircles(me) {
@@ -86,12 +98,16 @@ function showCircles(me) {
 
     svgContainer.selectAll(".circles")
         .data(data)
-        .filter(function(d) {return selected != d.year;})
+        .filter(function (d) {
+            return selected != d.year;
+        })
         .attr("display", displayOthers);
-        
+
     svgContainer.selectAll(".circles")
         .data(data)
-        .filter(function(d) {return selected == d.year;})
+        .filter(function (d) {
+            return selected == d.year;
+        })
         .attr("display", display);
 }
 
@@ -112,7 +128,7 @@ function makeLabels(svgContainer, msm, title, x, y) {
 
     // y label
     svgContainer.append('text')
-        .attr('transform', 'translate( 15,' + (msm.height / 2 + msm.yOffset) + ') rotate(-90)')//+25
+        .attr('transform', 'translate( 15,' + (msm.height / 2 + msm.yOffset) + ') rotate(-90)') //+25
         .style('font-size', '10pt')
         .text(y);
 }
@@ -121,10 +137,10 @@ function makeLabels(svgContainer, msm, title, x, y) {
 // and add tooltip functionality
 function plotData(map) {
     // get population data as array
-    curData = data.filter((row) => {
-        return row.year == 1960 && row.fertility != "NA" && row.life_expectancy != "NA"
-    })
-    let pop_data = data.map((row) => +row["population"]);
+    // curData = data1980.filter((row) => {
+    //     return row.year == 1960 && row.fertility != "NA" && row.life_expectancy != "NA"
+    // })
+    let pop_data = data1980.map((row) => +row["population"]);
     let pop_limits = d3.extent(pop_data);
     // make size scaling function for population
     let pop_map_func = d3.scaleSqrt()
@@ -146,7 +162,7 @@ function plotData(map) {
 
     // append data to SVG and plot as points
     svgContainer.selectAll('.dot')
-        .data(data)
+        .data(data1980)
         .enter()
         .append('circle')
         .attr('cx', xMap)
@@ -166,7 +182,7 @@ function plotData(map) {
             div
                 .style("left", (d3.event.pageX) + "px")
                 .style("top", (d3.event.pageY - 28) + "px");
-            
+
         })
         .on("mouseout", (d) => {
             div.transition()
@@ -177,7 +193,9 @@ function plotData(map) {
 
 // draws the population plot inside the tootip
 function plotPopulation(country, toolChart) {
-    let countryData = data.filter((row) => {return row.country == country})
+    let countryData = data.filter((row) => {
+        return row.country == country
+    })
     let population = countryData.map((row) => parseInt(row["population"]));
     let year = countryData.map((row) => parseInt(row["year"]));
 
@@ -190,8 +208,12 @@ function plotPopulation(country, toolChart) {
         .attr("stroke-width", 1.5)
         // make the line plot
         .attr("d", d3.line()
-                    .x(function(d) { return mapFunctions.xScale(d.year) })
-                    .y(function(d) { return mapFunctions.yScale(d.population) }))
+            .x(function (d) {
+                return mapFunctions.xScale(d.year)
+            })
+            .y(function (d) {
+                return mapFunctions.yScale(d.population)
+            }))
     makeLabels(toolChart, small_msm, "Population Over Time For " + country, "Year", "Population (in Million)");
 }
 
@@ -243,9 +265,11 @@ function drawAxes(limits, x, y, svgContainer, msm, printCommas = true) {
     if (printCommas) {
         yAxis = d3.axisLeft().scale(yScale)
     } else {
-        yAxis = d3.axisLeft().scale(yScale).tickFormat(function(d) { return d / 1000000 + "M"})
+        yAxis = d3.axisLeft().scale(yScale).tickFormat(function (d) {
+            return d / 1000000 + "M"
+        })
     }
-    
+
     svgContainer.append('g')
         .attr('transform', 'translate(' + msm.marginAll + ', 0)')
         .call(yAxis);
