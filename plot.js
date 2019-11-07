@@ -44,7 +44,7 @@ function makeScatterPlot(csvData) {
     makeLabels();
 
     let distinctYears = [...new Set(data.map(d => d.year))];
-    let defaultYear = 2015;
+    let defaultYear = 1980;
 
     let options = dropDown.selectAll("option")
            .data(distinctYears)
