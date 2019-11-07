@@ -18,8 +18,6 @@ path {
 div.tooltip {
     position: absolute;
     text-align: left;
-    width: 230px;
-    height: 80px;
     padding: 10px;
     font: 14px sans-serif;
     background: white;
