@@ -2,15 +2,34 @@
 
 let data = "";
 let svgContainer = ""; // keep SVG reference in global scope
+let popChartContainer = "";
 const msm = {
-    width: 1200,
+    width: 1100,
     height: 800,
-    marginAll: 50
+    marginAll: 50,
+    marginLeft: 50,
+    titleOffset: -90,
+    xOffset: -30,
+    xOffsetY: -10,
+    yOffset: 25
+}
+const small_msm = {
+    width: 450,
+    height: 450,
+    marginAll: 65,
+    titleOffset: -55,
+    xOffset: 30,
+    xOffsetY: -30,
+    yOffset: 40
 }
 
 // load data and make scatter plot after window loads
 window.onload = function () {
     svgContainer = d3.select("#chart")
+        .append('svg')
+        .attr('width', msm.width)
+        .attr('height', msm.height);
+    popChartContainer = d3.select("#popChart")
         .append('svg')
         .attr('width', msm.width)
         .attr('height', msm.height);
@@ -35,13 +54,13 @@ function makeScatterPlot(csvData) {
     let axesLimits = findMinMax(fertility_rate_data, life_expectancy_data);
 
     // draw axes and return scaling + mapping functions
-    let mapFunctions = drawAxes(axesLimits, "fertility", "life_expectancy");
+    let mapFunctions = drawAxes(axesLimits, "fertility", "life_expectancy", svgContainer, msm);
 
     // plot data as points and add tooltip functionality
     plotData(mapFunctions);
 
     // draw title and axes labels
-    makeLabels();
+    makeLabels(svgContainer, msm, "Countries by Life Expectancy and Fertility Rate",'Fertility Rates (Avg Children per Woman)','Life Expectancy (years)');
 
     let distinctYears = [...new Set(data.map(d => d.year))];
     let defaultYear = 1980;
@@ -77,23 +96,25 @@ function showCircles(me) {
 }
 
 // make title and axes labels
-function makeLabels() {
+function makeLabels(svgContainer, msm, title, x, y) {
     svgContainer.append('text')
-        .attr('x', (msm.width - 2 * msm.marginAll) / 2 - 90)
-        .attr('y', msm.marginAll / 2)
-        .style('font-size', '14pt')
-        .text("Countries by Life Expectancy and Fertility Rate");
-
-    svgContainer.append('text')
-        .attr('x', (msm.width - 2 * msm.marginAll) / 2 - 30)
-        .attr('y', msm.height - 10)
+        .attr('x', (msm.width - 2 * msm.marginAll) / 2 + msm.titleOffset) //90
+        .attr('y', msm.marginAll / 2 + 10)
         .style('font-size', '10pt')
-        .text('Fertility Rates (Avg Children per Woman)');
+        .text(title);
 
+    // x label
     svgContainer.append('text')
-        .attr('transform', 'translate( 15,' + (msm.height / 2 + 30) + ') rotate(-90)')
+        .attr('x', (msm.width - 2 * msm.marginAll) / 2 + msm.xOffset) //-30
+        .attr('y', msm.height + msm.xOffsetY) //10
         .style('font-size', '10pt')
-        .text('Life Expectancy (years)');
+        .text(x);
+
+    // y label
+    svgContainer.append('text')
+        .attr('transform', 'translate( 15,' + (msm.height / 2 + msm.yOffset) + ') rotate(-90)')//+25
+        .style('font-size', '10pt')
+        .text(y);
 }
 
 // plot all the data points on the SVG
@@ -108,7 +129,7 @@ function plotData(map) {
     // make size scaling function for population
     let pop_map_func = d3.scaleSqrt()
         .domain([pop_limits[0], pop_limits[1]])
-        .range([3, 50]);
+        .range([3, 30]);
 
     // mapping functions
     let xMap = map.x;
@@ -119,6 +140,9 @@ function plotData(map) {
         .attr("class", "tooltip")
         .style("opacity", 0);
 
+    let toolChart = div.append('svg')
+        .attr('width', small_msm.width)
+        .attr('height', small_msm.height)
 
     // append data to SVG and plot as points
     svgContainer.selectAll('.dot')
@@ -134,16 +158,15 @@ function plotData(map) {
         .attr("class", "circles")
         // add tooltip functionality to points
         .on("mouseover", (d) => {
+            toolChart.selectAll("*").remove()
             div.transition()
                 .duration(200)
                 .style("opacity", .9);
-            div.html("Fertility:       " + d.fertility + "<br/>" +
-                    "Life Expectancy: " + d.life_expectancy + "<br/>" +
-                    "Population:      " + numberWithCommas(d["population"]) + "<br/>" +
-                    "Year:            " + d.year + "<br/>" +
-                    "Country:         " + d.country)
+            plotPopulation(d.country, toolChart)
+            div
                 .style("left", (d3.event.pageX) + "px")
                 .style("top", (d3.event.pageY - 28) + "px");
+            
         })
         .on("mouseout", (d) => {
             div.transition()
@@ -152,8 +175,28 @@ function plotData(map) {
         });
 }
 
+// draws the population plot inside the tootip
+function plotPopulation(country, toolChart) {
+    let countryData = data.filter((row) => {return row.country == country})
+    let population = countryData.map((row) => parseInt(row["population"]));
+    let year = countryData.map((row) => parseInt(row["year"]));
+
+    let axesLimits = findMinMax(year, population);
+    let mapFunctions = drawAxes(axesLimits, "year", "population", toolChart, small_msm, false);
+    toolChart.append("path")
+        .datum(countryData)
+        .attr("fill", "none")
+        .attr("stroke", "steelblue")
+        .attr("stroke-width", 1.5)
+        // make the line plot
+        .attr("d", d3.line()
+                    .x(function(d) { return mapFunctions.xScale(d.year) })
+                    .y(function(d) { return mapFunctions.yScale(d.population) }))
+    makeLabels(toolChart, small_msm, "Population Over Time For " + country, "Year", "Population (in Million)");
+}
+
 // draw the axes and ticks
-function drawAxes(limits, x, y) {
+function drawAxes(limits, x, y, svgContainer, msm, printCommas = true) {
     // return x value from a row of data
     let xValue = function (d) {
         return +d[x];
@@ -170,7 +213,12 @@ function drawAxes(limits, x, y) {
     };
 
     // plot x-axis at bottom of SVG
-    let xAxis = d3.axisBottom().scale(xScale);
+    let xAxis;
+    if (printCommas) {
+        xAxis = d3.axisBottom().scale(xScale);
+    } else {
+        xAxis = d3.axisBottom().scale(xScale).tickFormat(d3.format("d"));
+    }
     svgContainer.append("g")
         .attr('transform', 'translate(0, ' + (msm.height - msm.marginAll) + ')')
         .call(xAxis);
@@ -182,7 +230,7 @@ function drawAxes(limits, x, y) {
 
     // function to scale y
     let yScale = d3.scaleLinear()
-        .domain([limits.yMax + 5, limits.yMin - 5]) // give domain buffer
+        .domain([limits.yMax + 2, limits.yMin - 2]) // give domain buffer
         .range([0 + msm.marginAll, msm.height - msm.marginAll])
 
     // yMap returns a scaled y value from a row of data
@@ -191,7 +239,13 @@ function drawAxes(limits, x, y) {
     };
 
     // plot y-axis at the left of SVG
-    let yAxis = d3.axisLeft().scale(yScale);
+    let yAxis;
+    if (printCommas) {
+        yAxis = d3.axisLeft().scale(yScale)
+    } else {
+        yAxis = d3.axisLeft().scale(yScale).tickFormat(function(d) { return d / 1000000 + "M"})
+    }
+    
     svgContainer.append('g')
         .attr('transform', 'translate(' + msm.marginAll + ', 0)')
         .call(yAxis);
